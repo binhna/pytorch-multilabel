@@ -18,7 +18,7 @@ class DNNModel(nn.Module):
         out = F.softmax(self.lout(out))
 
         # tmp = F.dropout(F.relu(self.lth(tmp)), self.drop)
-        threshold = 0#F.sigmoid(self.lthout(tmp))
+        # threshold = 0#F.sigmoid(self.lthout(tmp))
 
-        return out, threshold
+        return out#, threshold
 

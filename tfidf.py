@@ -68,9 +68,9 @@ if args.test:
         z = 0
         for i in range(0, test.size(0), args.batch_size):
             data_batch = Variable(test[i:i+args.batch_size])
-            output, threshold = dnn(data_batch)
-            output = output / torch.max(output, dim=1)[0].expand_as(output)
-            predict = torch.gt(output, threshold.expand_as(output)).data.cpu().numpy().astype('int32')
+            output = dnn(data_batch)
+            # output = output / torch.max(output, dim=1)[0].expand_as(output)
+            # predict = torch.gt(output, threshold.expand_as(output)).data.cpu().numpy().astype('int32')
             for j in range(predict.shape[0]):
                 if np.all(predict[j]==0):
                     predict[j, np.argmax(output[j])] = 1
@@ -96,50 +96,66 @@ def f1_batch(pred, ground):
         f1[i] = f1_score(ground[i], pred[i])
     return f1
 
+#define metric
+
+
+def accuracy(preds, y):
+    #round predictions to the closest integer
+    rounded_preds = torch.argmax(preds, dim=1)
+
+    correct = (rounded_preds == y).float()
+    acc = correct.sum() / len(correct)
+    return acc
+
+
 def train():
     dnn.train()
     total_loss = 0
+    total_acc = 0
     start_time = time.time()
     total_threshold = 0
     z = 0
     baseline = 0
     for i in range(0, td.size(0), args.batch_size):
         z = z+1
+        dnn.zero_grad()
+
         data_batch = Variable(td[i:i+args.batch_size])
         target_batch = Variable(tt[i:i+args.batch_size])
         
-        output, threshold = dnn(data_batch)
+        output = dnn(data_batch)
+        
         loss = criterion(output, target_batch)
+
+        acc = accuracy(output, target_batch)
         total_loss += loss.item()
-        dnn.zero_grad()
+        total_acc += acc.item()
         loss.backward(retain_graph=True)
 
+
         # threshold = torch.distributions.Normal(threshold, 0.2)
-        threshold = torch.normal(float(threshold), torch.Tensor([0.2]))
-        total_threshold += threshold.mean().item()
+        # threshold = torch.normal(float(threshold), torch.Tensor([0.2]))
+        # total_threshold += threshold.mean().item()
 
-        print(output.shape)
-        output = output / torch.max(output, dim=1)[0].expand_as(output)
-        predict = torch.gt(output, threshold.expand_as(output)).data.cpu().numpy().astype('int32')
-        ground = target_batch.data.cpu().numpy().astype('int32')
-        reward = f1_batch(predict, ground)
-        reward_mean = np.mean(reward)
+        # output = output / torch.max(output, dim=1)[0].expand_as(output)
+        # predict = torch.gt(output, threshold.expand_as(output)).data.cpu().numpy().astype('int32')
+        # ground = target_batch.data.cpu().numpy().astype('int32')
+        # reward = f1_batch(predict, ground)
+        # reward_mean = np.mean(reward)
 
-        baseline = baseline * 0.9 +  reward_mean * 0.1
-        to_reinforce = torch.from_numpy(reward - baseline).cuda()
-        threshold.reinforce(to_reinforce)
-        autograd.backward([threshold], [None])
+        # baseline = baseline * 0.9 +  reward_mean * 0.1
+        # to_reinforce = torch.from_numpy(reward - baseline).cuda()
+        # threshold.reinforce(to_reinforce)
+        # autograd.backward([threshold], [None])
 
         optimizer.step()
         if z % args.log_interval == 0 and i > 0:
             cur_loss = total_loss / args.log_interval
             cur_threshold = total_threshold / args.log_interval
             elapsed = time.time() - start_time
-            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.5f} | ms/batch {:5.2f} | loss {:5.2f} | threshold {:5.2f} | reward {:5.2f}'
-                  .format(epoch, z, td.size(0) // args.batch_size, lr, elapsed * 1000 / args.log_interval, cur_loss, cur_threshold,
-                          baseline))
+            print('| epoch {:3d} | {:5d}/{:5d} batches | lr {:02.5f} | ms/batch {:5.2f} | loss {:5.2f}'
+                  .format(epoch, z, td.size(0) // args.batch_size, lr, elapsed * 1000 / args.log_interval, cur_loss))
             total_loss = 0
-            total_threshold = 0
             start_time = time.time()
 
 def evaluate():
@@ -150,35 +166,39 @@ def evaluate():
         data_batch = Variable(vd[i:i+args.batch_size])
         target_batch = Variable(vt[i:i+args.batch_size])
 
-        output, threshold = dnn(data_batch)
-        total_loss += criterion(output, target_batch).data
+        output = dnn(data_batch)
+        loss = criterion(output, target_batch)
 
-        output = output / torch.max(output, dim=1)[0].expand_as(output)
-        predict = torch.gt(output, threshold.expand_as(output)).data.cpu().numpy().astype('int32')
-        ground = target_batch.data.cpu().numpy().astype('int32')
-        for j in range(predict.shape[0]):
-            if np.all(predict[j]==0):
-                predict[j, np.argmax(output[j])] = 1
+        acc = accuracy(output, target_batch)
+        total_loss += loss.item()
+        total_acc += acc.item()
 
-        f1 = f1 + np.sum(f1_batch(predict, ground))
+        # output = output / torch.max(output, dim=1)[0].expand_as(output)
+        # predict = torch.gt(output, threshold.expand_as(output)).data.cpu().numpy().astype('int32')
+        # ground = target_batch.data.cpu().numpy().astype('int32')
+        # for j in range(predict.shape[0]):
+        #     if np.all(predict[j]==0):
+        #         predict[j, np.argmax(output[j])] = 1
 
-    return total_loss[0] / vd.size(0), f1 / vd.size(0)
+        # f1 = f1 + np.sum(f1_batch(predict, ground))
 
-best_f1_score = None
+    return total_loss / vd.size(0), total_acc / vd.size(0)
+
+best_acc = None
 try:
     for epoch in range(1, args.epochs+1):
         epoch_start_time = time.time()
         train()
-        val_loss, f1 = evaluate()
+        val_loss, acc = evaluate()
         print('-' * 89)
-        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | f1 score {:5.3f}'
-              .format(epoch, time.time() - epoch_start_time, val_loss, f1))
+        print('| end of epoch {:3d} | time: {:5.2f}s | valid loss {:5.2f} | acc {:5.3f}'
+              .format(epoch, time.time() - epoch_start_time, val_loss, acc))
         print('-' * 89)
         # Save the model if the validation loss is the best we've seen so far.
-        if not best_f1_score or f1 > best_f1_score:
+        if not best_acc or acc > best_acc:
             with open(args.save, 'wb') as f:
                 torch.save(dnn, f)
-            best_f1_score = f1
+            best_acc = acc
 
 except KeyboardInterrupt:
     print('-' * 89)
