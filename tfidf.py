@@ -84,7 +84,7 @@ if args.test:
 
 lr = args.lr
 best_val_loss = None
-dnn = model.tfidf.DNNModel(ninp, args.nhid, nout, dropout=args.dropout)
+dnn = model.tfidf.DNNModel(ninp, nout, dropout=args.dropout)
 if args.cuda:
     dnn.cuda()
 optimizer = optim.Adam(dnn.parameters())
@@ -110,13 +110,15 @@ def train():
         
         output, threshold = dnn(data_batch)
         loss = criterion(output, target_batch)
-        total_loss += loss.data[0]
+        total_loss += loss.item()
         dnn.zero_grad()
-        loss.backward(retain_variables=True)
+        loss.backward(retain_graph=True)
 
-        threshold = Variable._torch.normal(threshold, 0.2)
-        total_threshold += threshold.mean().data[0]
+        # threshold = torch.distributions.Normal(threshold, 0.2)
+        threshold = torch.normal(float(threshold), torch.Tensor([0.2]))
+        total_threshold += threshold.mean().item()
 
+        print(output.shape)
         output = output / torch.max(output, dim=1)[0].expand_as(output)
         predict = torch.gt(output, threshold.expand_as(output)).data.cpu().numpy().astype('int32')
         ground = target_batch.data.cpu().numpy().astype('int32')

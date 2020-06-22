@@ -68,7 +68,10 @@ class Corpus:
         # train_texts = [train_texts[i] for i in rand_idx]
         # train_tags = [train_tags[i] for i in rand_idx]
 
-        count_vectorizer = CountVectorizer(min_df=1, lowercase=False, tokenizer=tokenizer)
+        count_vectorizer = CountVectorizer(min_df=2, 
+                lowercase=False, 
+                tokenizer=tokenizer,
+                max_df=0.8)
         count = count_vectorizer.fit_transform(train_tags+dev_tags)
         count_array = count.toarray().astype('float32')
         self.train_targets = torch.from_numpy(count_array[:train_len])
@@ -101,10 +104,16 @@ class Corpus:
                 self.test_data.append(tmp)
 
         elif feature == 'tfidf':
-            tfidf_vectorizer = TfidfVectorizer(stop_words=stopwords)
+            tfidf_vectorizer = TfidfVectorizer(
+                    stop_words=stopwords,
+                    max_df = 0.8,
+                    min_df = 0.1,
+                    tokenizer = tokenizer)
             tfidf = tfidf_vectorizer.fit_transform(
                 train_texts + dev_texts + test_texts)
+            print('testtt before')
             tfidf_array = tfidf.toarray().astype('float32')
+            print('test after')
 
             self.train_data = torch.from_numpy(tfidf_array[:train_len])
             self.val_data = torch.from_numpy(tfidf_array[train_len:train_len + dev_len])
