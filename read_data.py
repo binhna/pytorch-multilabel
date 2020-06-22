@@ -7,6 +7,7 @@ import numpy as np
 import nltk.corpus
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.feature_extraction.text import CountVectorizer
+import json
 import MeCab
 
 mecab_tokenizer = MeCab.Tagger(
