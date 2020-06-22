@@ -68,12 +68,11 @@ class Corpus:
         # train_texts = [train_texts[i] for i in rand_idx]
         # train_tags = [train_tags[i] for i in rand_idx]
 
-        count_vectorizer = CountVectorizer(min_df=2, 
-                lowercase=False, 
-                tokenizer=tokenizer,
-                max_df=0.8)
+        count_vectorizer = CountVectorizer(lowercase=False, 
+                                            tokenizer=tokenizer)
         count = count_vectorizer.fit_transform(train_tags+dev_tags)
         count_array = count.toarray().astype('float32')
+        print('count array', count_array)
         self.train_targets = torch.from_numpy(count_array[:train_len])
         self.val_targets = torch.from_numpy(count_array[-dev_len:])
         self.id2tags = count_vectorizer.get_feature_names()
