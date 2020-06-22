@@ -13,8 +13,14 @@ import read_data
 import model.tfidf
 
 parser = argparse.ArgumentParser(description='PyTorch mutlilabel tfidf')
-parser.add_argument('--nhid', type=int, default=500,
-                    help='number of hidden units per layer')
+# parser.add_argument('--nhid', type=int, default=500,
+#                     help='number of hidden units per layer')
+parser.add_argument('--train', type=str, default='/home/aimenext/binhna/text_classification/news_text_classification_train.csv',
+                    help='training file')
+parser.add_argument('--dev', type=str, default='/home/aimenext/binhna/text_classification/news_text_classification_train.csv',
+                    help='validation file')
+parser.add_argument('--test', type=str, default='/home/aimenext/binhna/text_classification/news_text_classification_train.csv',
+                    help='test file')
 parser.add_argument('--lr', type=float, default=0.01,
                     help='initial learning rate')
 parser.add_argument('--epochs', type=int, default=1024,
@@ -42,7 +48,7 @@ if torch.cuda.is_available():
     else:
         torch.cuda.manual_seed(args.seed)
 
-corpus = read_data.Corpus('data/', feature='tfidf', val=0.1)
+corpus = read_data.Corpus(args.train, args.dev, args.test, feature='tfidf', val=0.1)
 ninp = corpus.train_data.size(1)
 nout = corpus.train_targets.size(1)
 
